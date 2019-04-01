@@ -1,4 +1,4 @@
-package com.leothos.locatemypictures
+package com.leothos.locatemypictures.ui
 
 import android.Manifest
 import android.graphics.Bitmap
@@ -17,16 +17,30 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.maps.android.clustering.ClusterManager
+import com.google.maps.android.clustering.view.ClusterRenderer
 import com.gun0912.tedpermission.PermissionListener
 import com.gun0912.tedpermission.TedPermission
+import com.leothos.locatemypictures.LAST_TEN_PICTURES_COUNT
+import com.leothos.locatemypictures.LAT_LONG_ARRAY_SIZE
+import com.leothos.locatemypictures.R
+import com.leothos.locatemypictures.model.PictureCluster
+import com.leothos.locatemypictures.toast
+import com.leothos.locatemypictures.utils.PictureClusterRenderer
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
-    private lateinit var mMap: GoogleMap
+    //val
     private val isSDPresent = android.os.Environment.getExternalStorageState() == android.os.Environment.MEDIA_MOUNTED
-    val TAG = this::class.java.simpleName
+    private val TAG = this::class.java.simpleName
+    private val externalStorage = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    private val internalStorage = MediaStore.Images.Media.INTERNAL_CONTENT_URI
 
+    //var
+    private lateinit var clusterManager: ClusterManager<PictureCluster>
+    private lateinit var pictureRenderer: PictureClusterRenderer
+    private lateinit var mMap: GoogleMap
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,23 +66,27 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      */
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-        //Check if SD card in present in the device.
-        // If it's true we can access to the data, else we access the internal storage
+
+        // First setting up the cluster
+        setUpClusters()
+
+        //Check if SD card is present in the device.
+        // If it's true we can access to the external storage, else we access internal storage
         if (isSDPresent) {
             if (android.os.Environment.getExternalStorageState().isNotEmpty())
-                retrievePicturesLatLong(
-                    getPicturesFromDevice(MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                retrievePicturesExifLatLong(
+                    getPicturesPathFromDevice(externalStorage)
                 )
         } else {
-            retrievePicturesLatLong(
-                getPicturesFromDevice(MediaStore.Images.Media.INTERNAL_CONTENT_URI)
+            retrievePicturesExifLatLong(
+                getPicturesPathFromDevice(internalStorage)
             )
         }
 
     }
 
-    private fun getPicturesFromDevice(uri: Uri): Array<String?> {
-        Log.d(TAG, "getPicturesFromDevice Ok")
+    private fun getPicturesPathFromDevice(uri: Uri): Array<String?> {
+        Log.d(TAG, "getPicturesPathFromDevice Ok")
         val columns = arrayOf(MediaStore.Images.Media.DATA, MediaStore.Images.Media._ID)
         val orderBy = MediaStore.Images.Media.DATE_TAKEN + " DESC"
 
@@ -83,7 +101,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         //Create an array to store path to the images
         val arrPath = arrayOfNulls<String>(count)
-
         for (i in 0 until count) {
             cursor.moveToPosition(i)
             val dataColumnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
@@ -98,13 +115,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         return arrPath
     }
 
-    private fun retrievePicturesLatLong(arr: Array<String?>) {
+    // Todo Make return a list of PictureCluster object
+    private fun retrievePicturesExifLatLong(arr: Array<String?>) {
         Log.d(TAG, "arr.size = ${arr.size} file name ${arr[0]}")
 
         //First we check if the array is not null to prevent from crash
         if (arr.isNullOrEmpty()) toast("No pictures found")
-        // Second we store all the LatLong info in object in order to retrieve them easily
 
+        // Second we store all the LatLong info in object in order to retrieve them easily
         else {
             for (i in 0 until arr.size) {
                 val exif = ExifInterface(arr[i])
@@ -112,24 +130,63 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 val hasLatLng = exif.getLatLong(latLong)
                 if (hasLatLng) {
                     Log.d(TAG, "latitude = ${latLong[0]}, longitude = ${latLong[1]}")
-                    addCustomMarkersOnMap(latLong, arr[i]!!, i)
+                    //Todo découpage du code en solid
+//                    addCustomMarkersOnMap(latLong, arr[i]!!, i)
+                    addCustomRendererMarkersOnMap(latLong, arr[i], i)
                 }
             }
         }
 
     }
 
-    private fun addCustomMarkersOnMap(latLong: FloatArray, str: String, i :Int) {
+    private fun addCustomMarkersOnMap(latLong: FloatArray, str: String, i: Int) {
         val location = LatLng(latLong[0].toDouble() + i, latLong[1].toDouble() + i)
         val bitmapDrawable = BitmapDrawable.createFromPath(str)
         val d = bitmapDrawable?.current as BitmapDrawable
         val bitmap = d.bitmap
         val smallMarker = Bitmap.createScaledBitmap(bitmap, 200, 200, false)
         mMap.apply {
-            addMarker(MarkerOptions().position(location)
-                .title("Marker in Sydney")
-                .icon(BitmapDescriptorFactory.fromBitmap(smallMarker)))
-            moveCamera(CameraUpdateFactory.newLatLng(location))}
+            addMarker(
+                MarkerOptions().position(location)
+                    .title("Marker in Sydney")
+                    .icon(BitmapDescriptorFactory.fromBitmap(smallMarker))
+            )
+            //Move camera to the last mLocation
+            moveCamera(CameraUpdateFactory.newLatLng(location))
+        }
+    }
+
+    // **************
+    // Clustering
+    // **************
+
+    private fun setUpClusters() {
+        clusterManager = ClusterManager(this.applicationContext, mMap)
+        pictureRenderer = PictureClusterRenderer(this, mMap, clusterManager)
+        clusterManager.renderer = pictureRenderer
+        mMap.setOnCameraIdleListener(clusterManager)
+    }
+
+    // Renderer methods
+    private fun addCustomRendererMarkersOnMap(latLong: FloatArray, str: String?, i: Int) {
+
+
+        //Create picture cluster object
+        val pictureCluster = PictureCluster(mPhotoUri = Uri.parse(str), mLocation = position(latLong, i))
+        // Add to cluster manager
+        clusterManager.addItem(pictureCluster)
+        clusterManager.cluster()
+
+        // Show the icon on the map
+        //Todo create custom method camera zoom
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(position(latLong, i)))
+
+    }
+
+    //todo update position method more generic
+    // Simple utils method
+    private fun position(latLong: FloatArray, i: Int): LatLng {
+        return LatLng(latLong[0].toDouble() + i, latLong[1].toDouble() + i)
     }
 
     //**************
@@ -154,6 +211,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .setPermissions(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION)
             .check()
     }
-// Todo check camera.Parameters to set the value of coordinates setGps...cameraCharacteristics
+
+
+    // Todo check camera.Parameters to set the value of coordinates setGps...cameraCharacteristics
 
 }

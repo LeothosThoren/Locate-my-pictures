@@ -27,7 +27,7 @@ android {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     //noinspection GradleCompatible
     implementation 'com.android.support:appcompat-v7:28.0.0'
     testImplementation 'junit:junit:4.12'
@@ -39,4 +39,9 @@ dependencies {
 
     //TedPermission
     implementation 'gun0912.ted:tedpermission:2.2.2'
+
+    //Clustering render
+
+    implementation 'com.google.maps.android:android-maps-utils:0.5+'
+
 }
