@@ -3,7 +3,7 @@ package com.leothos.locatemypictures.utils
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
 import android.view.View.inflate
 import android.view.ViewGroup
@@ -56,7 +56,7 @@ data class PictureClusterRenderer(
 
     override fun onBeforeClusterRendered(cluster: Cluster<PictureCluster>, markerOptions: MarkerOptions) {
         // Draw multiple picture
-        val pictures = ArrayList<Drawable>(/*Math.min(4, cluster.size)*/)
+        val pictures = ArrayList<Drawable>(Math.min(4, cluster.size))
 
         //Draw 4 at most
         for (p in cluster.items) {

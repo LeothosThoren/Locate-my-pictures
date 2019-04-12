@@ -1,31 +1,24 @@
 package com.leothos.locatemypictures.ui
 
 import android.Manifest
-import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
-import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 import com.google.maps.android.clustering.ClusterManager
-import com.google.maps.android.clustering.view.ClusterRenderer
 import com.gun0912.tedpermission.PermissionListener
 import com.gun0912.tedpermission.TedPermission
-import com.leothos.locatemypictures.LAST_TEN_PICTURES_COUNT
-import com.leothos.locatemypictures.LAT_LONG_ARRAY_SIZE
-import com.leothos.locatemypictures.R
+import com.leothos.locatemypictures.*
 import com.leothos.locatemypictures.model.PictureCluster
-import com.leothos.locatemypictures.toast
 import com.leothos.locatemypictures.utils.PictureClusterRenderer
 
 
@@ -36,11 +29,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private val TAG = this::class.java.simpleName
     private val externalStorage = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     private val internalStorage = MediaStore.Images.Media.INTERNAL_CONTENT_URI
+    private val defaultLatLong = LatLng(DEFAULT_LAT, DEFAULT_LNG)
+
 
     //var
     private lateinit var clusterManager: ClusterManager<PictureCluster>
     private lateinit var pictureRenderer: PictureClusterRenderer
     private lateinit var mMap: GoogleMap
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +44,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Check permissions
         checkPermissions()
+        // Check camera parameters
+//        checkGpsCameraParameters()
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -74,93 +72,84 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         // If it's true we can access to the external storage, else we access internal storage
         if (isSDPresent) {
             if (android.os.Environment.getExternalStorageState().isNotEmpty())
-                retrievePicturesExifLatLong(
-                    getPicturesPathFromDevice(externalStorage)
-                )
+                retrievePicturesExifLatLong(getPicturesPathFromUri(externalStorage))
+
         } else {
-            retrievePicturesExifLatLong(
-                getPicturesPathFromDevice(internalStorage)
-            )
+            retrievePicturesExifLatLong(getPicturesPathFromUri(internalStorage))
         }
 
     }
 
-    private fun getPicturesPathFromDevice(uri: Uri): Array<String?> {
-        Log.d(TAG, "getPicturesPathFromDevice Ok")
+    private fun getPicturesPathFromUri(uri: Uri): Array<String?> {
+        Log.d(TAG, "getPicturesPathFromUri Ok")
+
         val columns = arrayOf(MediaStore.Images.Media.DATA, MediaStore.Images.Media._ID)
         val orderBy = MediaStore.Images.Media.DATE_TAKEN + " DESC"
 
         //Stores all the images from the gallery in Cursor
         val cursor = contentResolver.query(
-            uri, columns,
-            null, null, orderBy
+            uri, columns, null, null, orderBy
         )
+
 
         //Total number of images found
         val count = if (cursor!!.count < LAST_TEN_PICTURES_COUNT) cursor.count else LAST_TEN_PICTURES_COUNT
 
         //Create an array to store path to the images
-        val arrPath = arrayOfNulls<String>(count)
+        val filesPath = arrayOfNulls<String>(count)
         for (i in 0 until count) {
             cursor.moveToPosition(i)
             val dataColumnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
             //Store the path of the image
-            arrPath[i] = cursor.getString(dataColumnIndex)
-            Log.d(TAG, arrPath[i])
+            filesPath[i] = cursor.getString(dataColumnIndex)
+            Log.d(TAG, filesPath[i])
         }
 
         // The cursor should be freed up after use with close()
         cursor.close()
-
-        return arrPath
+        return filesPath
     }
 
-    // Todo Make return a list of PictureCluster object
-    private fun retrievePicturesExifLatLong(arr: Array<String?>) {
-        Log.d(TAG, "arr.size = ${arr.size} file name ${arr[0]}")
+    private fun retrievePicturesExifLatLong(filePathArray: Array<String?>) {
 
         //First we check if the array is not null to prevent from crash
-        if (arr.isNullOrEmpty()) toast("No pictures found")
+        if (filePathArray.isNullOrEmpty()) toast("No pictures found")
 
-        // Second we store all the LatLong info in object in order to retrieve them easily
+        // Second we store all the LatLong info and more into a list in order to retrieve them easily
         else {
-            for (i in 0 until arr.size) {
-                val exif = ExifInterface(arr[i])
+            for (i in 0 until filePathArray.size) {
+                Log.d(TAG, "content of the array : ${filePathArray[i]}")
+//
+                val exif = ExifInterface(filePathArray[i]!!)
+//                val latLong = exif.latLong
+//
+//                Log.d(TAG, "latitude = ${latLong?.get(0)}, longitude = ${latLong?.get(1)}")
+//                // Add pictures as marker on the map
+//                if (latLong != null) {
+//                    exifArray[i] = latLong[i]
+//                    addCustomRendererMarkersOnMap(exifArray, filePathArray[i])
+//                }
+
                 val latLong = FloatArray(LAT_LONG_ARRAY_SIZE)
                 val hasLatLng = exif.getLatLong(latLong)
+
                 if (hasLatLng) {
                     Log.d(TAG, "latitude = ${latLong[0]}, longitude = ${latLong[1]}")
-                    //Todo découpage du code en solid
-//                    addCustomMarkersOnMap(latLong, arr[i]!!, i)
-                    addCustomRendererMarkersOnMap(latLong, arr[i], i)
+                    addCustomRendererMarkersOnMap(position(latLong, i), filePathArray[i])
+
                 }
             }
         }
 
     }
 
-    private fun addCustomMarkersOnMap(latLong: FloatArray, str: String, i: Int) {
-        val location = LatLng(latLong[0].toDouble() + i, latLong[1].toDouble() + i)
-        val bitmapDrawable = BitmapDrawable.createFromPath(str)
-        val d = bitmapDrawable?.current as BitmapDrawable
-        val bitmap = d.bitmap
-        val smallMarker = Bitmap.createScaledBitmap(bitmap, 200, 200, false)
-        mMap.apply {
-            addMarker(
-                MarkerOptions().position(location)
-                    .title("Marker in Sydney")
-                    .icon(BitmapDescriptorFactory.fromBitmap(smallMarker))
-            )
-            //Move camera to the last mLocation
-            moveCamera(CameraUpdateFactory.newLatLng(location))
-        }
-    }
 
     // **************
     // Clustering
     // **************
 
     private fun setUpClusters() {
+
         clusterManager = ClusterManager(this.applicationContext, mMap)
         pictureRenderer = PictureClusterRenderer(this, mMap, clusterManager)
         clusterManager.renderer = pictureRenderer
@@ -168,25 +157,28 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     // Renderer methods
-    private fun addCustomRendererMarkersOnMap(latLong: FloatArray, str: String?, i: Int) {
+    private fun addCustomRendererMarkersOnMap(latLong: LatLng, str: String?) {
 
-
+        //set camera default position
+        setCameraMapPosition()
         //Create picture cluster object
-        val pictureCluster = PictureCluster(mPhotoUri = Uri.parse(str), mLocation = position(latLong, i))
+        val pictureCluster = PictureCluster(mPhotoUri = Uri.parse(str), mLocation = latLong)
         // Add to cluster manager
         clusterManager.addItem(pictureCluster)
         clusterManager.cluster()
 
+    }
+
+    private fun setCameraMapPosition() {
         // Show the icon on the map
-        //Todo create custom method camera zoom
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(position(latLong, i)))
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLatLong, CONTINENT_ZOOM))
 
     }
 
-    //todo update position method more generic
-    // Simple utils method
+    // Simple utils method to generate latLong
     private fun position(latLong: FloatArray, i: Int): LatLng {
-        return LatLng(latLong[0].toDouble() + i, latLong[1].toDouble() + i)
+        val trick = i - 1
+        return LatLng(latLong[0].toDouble() + trick, latLong[1].toDouble() + trick)
     }
 
     //**************
@@ -207,12 +199,29 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         TedPermission.with(this)
             .setPermissionListener(permissionListener)
-            .setDeniedMessage("If you reject permission,you can not use this service\n\nPlease turn on permissions at [Setting] > [Permission]")
-            .setPermissions(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION)
+            .setDeniedMessage(
+                "If you reject permission,you can not use this service" +
+                        "\n\nPlease turn on permissions at [Setting] > [Permission]"
+            )
+            .setPermissions(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.ACCESS_FINE_LOCATION
+//                Manifest.permission.CAMERA
+            )
             .check()
     }
 
 
     // Todo check camera.Parameters to set the value of coordinates setGps...cameraCharacteristics
+
+//    private fun checkGpsCameraParameters() {
+//        val cameraManager: CameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+//        val cameraList = cameraManager.cameraIdList
+//        if (cameraList.isNotEmpty()) {
+//            for (c in cameraList)
+//                Log.d(TAG, "list camera id => $c or ${cameraList[0]}")
+//        }
+//
+//    }
 
 }
