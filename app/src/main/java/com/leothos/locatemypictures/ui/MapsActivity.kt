@@ -1,23 +1,20 @@
 package com.leothos.locatemypictures.ui
 
 import android.Manifest
-import android.annotation.TargetApi
-import android.content.Context
-import android.hardware.camera2.CameraManager
+import android.content.res.Resources
 import android.media.ExifInterface
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.clustering.ClusterManager
 import com.gun0912.tedpermission.PermissionListener
 import com.gun0912.tedpermission.TedPermission
@@ -46,18 +43,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
 
-        // Check permissions
-        checkPermissions()
-        // Check camera parameters
-        checkGpsCameraParameters()
-    }
-
-    override fun onResume() {
-        super.onResume()
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
+
+
     }
 
     /**
@@ -69,6 +60,27 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      */
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
+
+        // Customise
+        try {
+            // Customise the styling of the base map using a JSON object defined
+            // in a raw resource file.
+            val success = googleMap.setMapStyle(
+                MapStyleOptions.loadRawResourceStyle(
+                    this, R.raw.style_json
+                )
+            )
+
+            if (!success) {
+                Log.e(TAG, "Style parsing failed.")
+            }
+        } catch (e: Resources.NotFoundException) {
+            Log.e(TAG, "Can't find style. Error: ", e)
+        }
+
+
+        // Check permissions
+        checkPermissions()
 
         // First setting up the cluster
         setUpClusters()
@@ -86,6 +98,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     /**
+     * Retrieve 10 or less pictures in Media repository of the device and store them into a Cursor object
+     * All the path are displayed into an array of string. The file path will help to retrieve Exif meta data
      *
      * */
     private fun getPicturesPathFromUri(uri: Uri): Array<String?> {
@@ -117,6 +131,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         return filesPath
     }
 
+    /**
+     * This method take a file path in parameter and allow to retrieve exif meta data.
+     * In particular Latlong attribute
+     * */
     private fun retrievePicturesExifLatLong(filePathArray: Array<String?>) {
 
         //First we check if the array is not null to prevent from crash
@@ -140,11 +158,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     }
 
-
     // **************
     // Clustering
     // **************
 
+    /**
+     *
+     * */
     private fun setUpClusters() {
 
         clusterManager = ClusterManager(this.applicationContext, mMap)
@@ -169,7 +189,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setCameraMapPosition() {
         // Show the icon on the map
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLatLong, CONTINENT_ZOOM))
-
     }
 
     // Simple utils method to generate latLong
@@ -203,21 +222,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .setPermissions(
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.ACCESS_FINE_LOCATION
-//                Manifest.permission.CAMERA
             )
             .check()
-    }
-
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private fun checkGpsCameraParameters() {
-        val cameraManager: CameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val cameraList = cameraManager.cameraIdList
-        if (cameraList.isNotEmpty()) {
-            for (c in cameraList)
-                Log.d(TAG, "list camera id => $c or ${cameraList[0]}")
-        }
-
     }
 
 }

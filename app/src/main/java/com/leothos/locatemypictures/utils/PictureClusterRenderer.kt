@@ -1,13 +1,12 @@
 package com.leothos.locatemypictures.utils
 
-import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
 import android.view.View.inflate
 import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.MarkerOptions
@@ -56,7 +55,7 @@ data class PictureClusterRenderer(
 
     override fun onBeforeClusterRendered(cluster: Cluster<PictureCluster>, markerOptions: MarkerOptions) {
         // Draw multiple picture
-        val pictures = ArrayList<Drawable>(Math.min(4, cluster.size))
+        val pictures = ArrayList<Drawable>(/*Math.min(4, cluster.size)*/)
 
         //Draw 4 at most
         for (p in cluster.items) {
@@ -66,8 +65,10 @@ data class PictureClusterRenderer(
             pictures.add(bitmapDrawable!!)
         }
 
-        Log.d("Debug renderer", "pictures.size = ${pictures.size}\n cluster.items = ${cluster.items}\n" +
-                "cluster.size = ${cluster.size}")
+        Log.d(
+            "Debug renderer", "pictures.size = ${pictures.size}\n cluster.items = ${cluster.items}\n" +
+                    "cluster.size = ${cluster.size}"
+        )
 
         val multiDrawable = MultiDrawable(pictures)
         multiDrawable.setBounds(0, 0, markerWidth, markerHeight)
