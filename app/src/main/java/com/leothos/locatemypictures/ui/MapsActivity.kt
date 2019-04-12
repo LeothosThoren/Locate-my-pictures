@@ -1,8 +1,12 @@
 package com.leothos.locatemypictures.ui
 
 import android.Manifest
+import android.annotation.TargetApi
+import android.content.Context
+import android.hardware.camera2.CameraManager
 import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
@@ -45,14 +49,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         // Check permissions
         checkPermissions()
         // Check camera parameters
-//        checkGpsCameraParameters()
+        checkGpsCameraParameters()
+    }
 
+    override fun onResume() {
+        super.onResume()
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
-
-
     }
 
     /**
@@ -80,6 +85,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     }
 
+    /**
+     *
+     * */
     private fun getPicturesPathFromUri(uri: Uri): Array<String?> {
         Log.d(TAG, "getPicturesPathFromUri Ok")
 
@@ -90,7 +98,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         val cursor = contentResolver.query(
             uri, columns, null, null, orderBy
         )
-
 
         //Total number of images found
         val count = if (cursor!!.count < LAST_TEN_PICTURES_COUNT) cursor.count else LAST_TEN_PICTURES_COUNT
@@ -119,24 +126,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         else {
             for (i in 0 until filePathArray.size) {
                 Log.d(TAG, "content of the array : ${filePathArray[i]}")
-//
-                val exif = ExifInterface(filePathArray[i]!!)
-//                val latLong = exif.latLong
-//
-//                Log.d(TAG, "latitude = ${latLong?.get(0)}, longitude = ${latLong?.get(1)}")
-//                // Add pictures as marker on the map
-//                if (latLong != null) {
-//                    exifArray[i] = latLong[i]
-//                    addCustomRendererMarkersOnMap(exifArray, filePathArray[i])
-//                }
 
+                val exif = ExifInterface(filePathArray[i]!!)
                 val latLong = FloatArray(LAT_LONG_ARRAY_SIZE)
                 val hasLatLng = exif.getLatLong(latLong)
 
                 if (hasLatLng) {
                     Log.d(TAG, "latitude = ${latLong[0]}, longitude = ${latLong[1]}")
                     addCustomRendererMarkersOnMap(position(latLong, i), filePathArray[i])
-
                 }
             }
         }
@@ -212,16 +209,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
 
-    // Todo check camera.Parameters to set the value of coordinates setGps...cameraCharacteristics
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private fun checkGpsCameraParameters() {
+        val cameraManager: CameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraList = cameraManager.cameraIdList
+        if (cameraList.isNotEmpty()) {
+            for (c in cameraList)
+                Log.d(TAG, "list camera id => $c or ${cameraList[0]}")
+        }
 
-//    private fun checkGpsCameraParameters() {
-//        val cameraManager: CameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-//        val cameraList = cameraManager.cameraIdList
-//        if (cameraList.isNotEmpty()) {
-//            for (c in cameraList)
-//                Log.d(TAG, "list camera id => $c or ${cameraList[0]}")
-//        }
-//
-//    }
+    }
 
 }
