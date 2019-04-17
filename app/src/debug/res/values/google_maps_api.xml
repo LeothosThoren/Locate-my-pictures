@@ -1,6 +1,5 @@
 <resources>
-    <!--TODO: implement api security here-->
     <string name="google_maps_key" translatable="false" templateMergeStrategy="preserve">
-        AIzaSyDkH7Qzyuvrwg0l519o54w0IhpjT_iAMoM
+        AIzaSyAsgJNqlme9T3mfsPCtqSuaSt1ZcOns7IQ
     </string>
 </resources>

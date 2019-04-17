@@ -1,7 +1,6 @@
 package com.leothos.locatemypictures.ui
 
 import android.Manifest
-import android.content.res.Resources
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Bundle
@@ -14,7 +13,6 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.clustering.ClusterManager
 import com.gun0912.tedpermission.PermissionListener
 import com.gun0912.tedpermission.TedPermission
@@ -26,12 +24,12 @@ import com.leothos.locatemypictures.utils.PictureClusterRenderer
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     //val
-    private val isSDPresent = android.os.Environment.getExternalStorageState() == android.os.Environment.MEDIA_MOUNTED
+    private val isSDPresent =
+        android.os.Environment.getExternalStorageState() == android.os.Environment.MEDIA_MOUNTED
     private val TAG = this::class.java.simpleName
     private val externalStorage = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     private val internalStorage = MediaStore.Images.Media.INTERNAL_CONTENT_URI
     private val defaultLatLong = LatLng(DEFAULT_LAT, DEFAULT_LNG)
-
 
     //var
     private lateinit var clusterManager: ClusterManager<PictureCluster>
@@ -48,6 +46,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        // Check permissions
+        checkPermissions()
 
     }
 
@@ -60,27 +60,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      */
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-
-        // Customise
-        try {
-            // Customise the styling of the base map using a JSON object defined
-            // in a raw resource file.
-            val success = googleMap.setMapStyle(
-                MapStyleOptions.loadRawResourceStyle(
-                    this, R.raw.style_json
-                )
-            )
-
-            if (!success) {
-                Log.e(TAG, "Style parsing failed.")
-            }
-        } catch (e: Resources.NotFoundException) {
-            Log.e(TAG, "Can't find style. Error: ", e)
-        }
-
-
-        // Check permissions
-        checkPermissions()
 
         // First setting up the cluster
         setUpClusters()
@@ -154,7 +133,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     addCustomRendererMarkersOnMap(position(latLong, i), filePathArray[i])
                 }
             }
+            // After adding item
+            clusterManager.cluster()
         }
+
+        //set camera default position
+        setCameraMapPosition()
 
     }
 
@@ -176,13 +160,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     // Renderer methods
     private fun addCustomRendererMarkersOnMap(latLong: LatLng, str: String?) {
 
-        //set camera default position
-        setCameraMapPosition()
         //Create picture cluster object
         val pictureCluster = PictureCluster(mPhotoUri = Uri.parse(str), mLocation = latLong)
         // Add to cluster manager
         clusterManager.addItem(pictureCluster)
-        clusterManager.cluster()
 
     }
 
@@ -193,8 +174,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     // Simple utils method to generate latLong
     private fun position(latLong: FloatArray, i: Int): LatLng {
-        val trick = i - 1
-        return LatLng(latLong[0].toDouble() + trick, latLong[1].toDouble() + trick)
+        return LatLng(latLong[0].toDouble() /*+ trick*/, latLong[1].toDouble() /*+ trick*/)
     }
 
     //**************

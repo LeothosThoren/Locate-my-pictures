@@ -46,4 +46,7 @@ dependencies {
     // support ExifInterface
     implementation 'androidx.exifinterface:exifinterface:1.0.0-beta01'
 
+    //Leak canary
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:1.6.3'
+    releaseImplementation 'com.squareup.leakcanary:leakcanary-android-no-op:1.6.3'
 }
