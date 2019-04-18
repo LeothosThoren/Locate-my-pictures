@@ -49,4 +49,7 @@ dependencies {
     //Leak canary
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:1.6.3'
     releaseImplementation 'com.squareup.leakcanary:leakcanary-android-no-op:1.6.3'
+
+    //Anko (kotlin library to perform background task
+    implementation 'org.jetbrains.anko:anko-common:0.10.8'
 }

@@ -13,6 +13,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.clustering.Cluster
 import com.google.maps.android.clustering.ClusterManager
 import com.gun0912.tedpermission.PermissionListener
 import com.gun0912.tedpermission.TedPermission
@@ -20,8 +21,13 @@ import com.leothos.locatemypictures.*
 import com.leothos.locatemypictures.model.PictureCluster
 import com.leothos.locatemypictures.utils.PictureClusterRenderer
 
+// Todo : update the image zoom
+// Todo : add a click listener both on Cluster or marker
+// Todo : Reduce the lags
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ClusterManager.OnClusterClickListener<PictureCluster> {
+
 
     //val
     private val isSDPresent =
@@ -68,12 +74,25 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         // If it's true we can access to the external storage, else we access internal storage
         if (isSDPresent) {
             if (android.os.Environment.getExternalStorageState().isNotEmpty())
-                retrievePicturesExifLatLong(getPicturesPathFromUri(externalStorage))
+                addCustomRendererMarkersOnMap(retrievePicturesExifLatLong(getPicturesPathFromUri(externalStorage)))
 
         } else {
-            retrievePicturesExifLatLong(getPicturesPathFromUri(internalStorage))
+            addCustomRendererMarkersOnMap((retrievePicturesExifLatLong(getPicturesPathFromUri(internalStorage))))
         }
 
+        clusterManager.setOnClusterItemClickListener {
+            toast("test click listener")
+            true }
+    }
+
+
+    //==========
+    // Actions
+    //==========
+
+    override fun onClusterClick(cluster: Cluster<PictureCluster>?): Boolean {
+        toast("${cluster?.size} (including ${cluster?.position})")
+        return false
     }
 
     /**
@@ -89,7 +108,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         //Stores all the images from the gallery in Cursor
         val cursor = contentResolver.query(
-            uri, columns, null, null, orderBy
+            uri, columns, MediaStore.Images.Media.DATA + " like ? ", arrayOf("%Camera%"), orderBy
         )
 
         //Total number of images found
@@ -114,13 +133,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      * This method take a file path in parameter and allow to retrieve exif meta data.
      * In particular Latlong attribute
      * */
-    private fun retrievePicturesExifLatLong(filePathArray: Array<String?>) {
-
+    private fun retrievePicturesExifLatLong(filePathArray: Array<String?>): MutableList<PictureCluster> {
+        val pictureCluster = mutableListOf<PictureCluster>()
         //First we check if the array is not null to prevent from crash
         if (filePathArray.isNullOrEmpty()) toast("No pictures found")
 
         // Second we store all the LatLong info and more into a list in order to retrieve them easily
         else {
+
             for (i in 0 until filePathArray.size) {
                 Log.d(TAG, "content of the array : ${filePathArray[i]}")
 
@@ -130,16 +150,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
                 if (hasLatLng) {
                     Log.d(TAG, "latitude = ${latLong[0]}, longitude = ${latLong[1]}")
-                    addCustomRendererMarkersOnMap(position(latLong, i), filePathArray[i])
+
+                    //Create picture cluster object
+                    pictureCluster.add(
+                        PictureCluster(
+                            mPhotoUri = Uri.parse(filePathArray[i]),
+                            mLocation = position(latLong)
+                        )
+                    )
                 }
             }
-            // After adding item
-            clusterManager.cluster()
+
         }
-
-        //set camera default position
-        setCameraMapPosition()
-
+        return pictureCluster
     }
 
     // **************
@@ -155,26 +178,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         pictureRenderer = PictureClusterRenderer(this, mMap, clusterManager)
         clusterManager.renderer = pictureRenderer
         mMap.setOnCameraIdleListener(clusterManager)
+        //click handler
+        mMap.setOnMarkerClickListener(clusterManager)
+        clusterManager.setOnClusterClickListener(this)
     }
 
     // Renderer methods
-    private fun addCustomRendererMarkersOnMap(latLong: LatLng, str: String?) {
+    private fun addCustomRendererMarkersOnMap(pictureCluster: MutableList<PictureCluster>) {
 
-        //Create picture cluster object
-        val pictureCluster = PictureCluster(mPhotoUri = Uri.parse(str), mLocation = latLong)
         // Add to cluster manager
-        clusterManager.addItem(pictureCluster)
+        for (p in pictureCluster)
+            clusterManager.addItem(p)
+
+        // After adding item
+        clusterManager.cluster()
+
+        setCameraMapPosition(pictureCluster[0].mLocation)
 
     }
 
-    private fun setCameraMapPosition() {
+    private fun setCameraMapPosition(latLng: LatLng) {
         // Show the icon on the map
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLatLong, CONTINENT_ZOOM))
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, CONTINENT_ZOOM))
     }
 
     // Simple utils method to generate latLong
-    private fun position(latLong: FloatArray, i: Int): LatLng {
-        return LatLng(latLong[0].toDouble() /*+ trick*/, latLong[1].toDouble() /*+ trick*/)
+    private fun position(latLong: FloatArray): LatLng {
+        return LatLng(latLong[0].toDouble(), latLong[1].toDouble())
     }
 
     //**************
